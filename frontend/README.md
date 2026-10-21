@@ -1,16 +1,10 @@
-# React + Vite
+# Frontend (React + Vite + Tailwind + Leaflet)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173  (proxy /api -> http://127.0.0.1:8000)
+```
+Cần Django đang chạy ở cổng 8000 và đã cài `apps/bookings/views_public.py` (xem hướng dẫn backend).
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Trang: `/` tìm kiếm + bản đồ giá · `/rooms/:id` lịch + bảng giá từng ngày + chọn xe · `/bookings` đơn của tôi + đếm ngược giữ chỗ + thanh toán giả lập · `/login`.
