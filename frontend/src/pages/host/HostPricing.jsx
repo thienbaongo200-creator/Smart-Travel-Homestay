@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api";
-import { useAuth } from "../../auth.jsx";
-import { btn, ErrBox, inp } from "./ui.jsx";
+import { api } from "../../services/api.js";
+import { useAuth } from "../../hooks/useAuth.jsx";
+import { btn, ErrBox, inp } from "../../components/domain/HostUi.jsx";
 
 const KINDS = {
   WEEKEND: "Cuối tuần (T6–CN)", HOLIDAY: "Ngày lễ/Tết", SEASON: "Mùa cao/thấp điểm",

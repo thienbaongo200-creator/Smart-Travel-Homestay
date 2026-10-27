@@ -1,4 +1,4 @@
-import { dayLabel, vnd } from "../utils";
+import { dayLabel, vnd } from "../../utils/index.js";
 
 function Badges({ l }) {
   const out = [];

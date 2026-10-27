@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../../api";
-import { useAuth } from "../../auth.jsx";
-import Calendar from "../../components/Calendar.jsx";
-import { addDays } from "../../utils";
-import { Badge, btn, ErrBox, inp, SLOT } from "./ui.jsx";
+import { api } from "../../services/api.js";
+import { useAuth } from "../../hooks/useAuth.jsx";
+import Calendar from "../../components/domain/Calendar.jsx";
+import { addDays } from "../../utils/index.js";
+import { Badge, btn, ErrBox, inp, SLOT } from "../../components/domain/HostUi.jsx";
 
 export default function HostCalendar() {
   const { user } = useAuth();

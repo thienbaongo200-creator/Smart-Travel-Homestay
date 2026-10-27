@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { vnd } from "../utils";
+import { vnd } from "../../utils/index.js";
 
 function Fit({ points }) {
   const map = useMap();

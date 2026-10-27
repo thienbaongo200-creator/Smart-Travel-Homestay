@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api";
-import { useAuth } from "../../auth.jsx";
-import { vnd } from "../../utils";
-import { APPROVAL, Badge, btn, ErrBox, inp } from "./ui.jsx";
+import { api } from "../../services/api.js";
+import { useAuth } from "../../hooks/useAuth.jsx";
+import { vnd } from "../../utils/index.js";
+import { APPROVAL, Badge, btn, ErrBox, inp } from "../../components/domain/HostUi.jsx";
 
 function useCrud(paths) {
   const [data, setData] = useState(null);
@@ -22,9 +22,9 @@ function RoomForm({ homestayId, onAdd }) {
   return (
     <form className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end mt-3"
           onSubmit={async (e) => { e.preventDefault(); if (await onAdd({ ...f, homestay: homestayId })) setF({ name: "", base_price: "", max_guests: 2 }); }}>
-      <label className="text-xs">Tên phòng<input required value={f.name} onChange={set("name")} className={inp} /></label>
-      <label className="text-xs">Giá gốc/đêm (₫)<input required type="number" min="1000" step="1000" value={f.base_price} onChange={set("base_price")} className={inp} /></label>
-      <label className="text-xs">Số khách tối đa<input required type="number" min="1" value={f.max_guests} onChange={set("max_guests")} className={inp} /></label>
+      <label className="text-sm">Tên phòng<input required value={f.name} onChange={set("name")} className={inp} /></label>
+      <label className="text-sm">Giá gốc/đêm (₫)<input required type="number" min="1000" step="1000" value={f.base_price} onChange={set("base_price")} className={inp} /></label>
+      <label className="text-sm">Số khách tối đa<input required type="number" min="1" value={f.max_guests} onChange={set("max_guests")} className={inp} /></label>
       <button className={btn}>+ Thêm phòng</button>
     </form>
   );
@@ -125,28 +125,29 @@ function Vehicles() {
               e.preventDefault();
               if (await run(() => api("/host/vehicles/", { method: "POST", body: { ...f, engine_cc: f.engine_cc || null } }))) setF(empty);
             }}>
-        <label className="text-xs col-span-2">Tên xe<input required value={f.name} onChange={set("name")} className={inp} /></label>
-        <label className="text-xs">Loại
+        <label className="text-sm col-span-2">Tên xe<input required value={f.name} onChange={set("name")} className={inp} /></label>
+        <label className="text-sm">Loại
           <select value={f.vehicle_type} onChange={set("vehicle_type")} className={inp}><option value="MOTORBIKE">Xe máy</option><option value="CAR">Ô tô</option></select>
         </label>
-        <label className="text-xs">Hộp số
+        <label className="text-sm">Hộp số
           <select value={f.transmission} onChange={set("transmission")} className={inp}><option value="AT">Số tự động</option><option value="MT">Số sàn</option></select>
         </label>
-        <label className="text-xs">Phân khối (cc)<input type="number" value={f.engine_cc} onChange={set("engine_cc")} className={inp} /></label>
-        <label className="text-xs">Số chỗ<input required type="number" min="1" value={f.seats} onChange={set("seats")} className={inp} /></label>
-        <label className="text-xs">Giá/ngày (₫)<input required type="number" min="1000" step="1000" value={f.base_price} onChange={set("base_price")} className={inp} /></label>
-        <label className="text-xs">Thành phố<input required value={f.city} onChange={set("city")} className={inp} /></label>
+        <label className="text-sm">Phân khối (cc)<input type="number" value={f.engine_cc} onChange={set("engine_cc")} className={inp} /></label>
+        <label className="text-sm">Số chỗ<input required type="number" min="1" value={f.seats} onChange={set("seats")} className={inp} /></label>
+        <label className="text-sm">Giá/ngày (₫)<input required type="number" min="1000" step="1000" value={f.base_price} onChange={set("base_price")} className={inp} /></label>
+        <label className="text-sm">Thành phố<input required value={f.city} onChange={set("city")} className={inp} /></label>
         <button className={btn + " col-span-2 md:col-span-4"}>+ Đăng xe (chờ admin duyệt)</button>
       </form>
 
       <div className="bg-white border rounded-xl divide-y">
         {vehicles.length === 0 && <div className="p-4 text-sm text-slate-500">Chưa có xe nào.</div>}
         {vehicles.map((v) => (
-          <div key={v.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-            <div>
+          <div key={v.id} className="flex flex-col justify-between gap-3 p-4 text-sm sm:flex-row sm:items-center">
+            <div className="min-w-0">
               <b>{v.name}</b> · {v.vehicle_type === "CAR" ? "Ô tô" : "Xe máy"} · {v.transmission === "AT" ? "Số tự động" : "Số sàn"} · {v.seats} chỗ · {vnd(v.base_price)}/ngày · {v.city}
+              {v.status === "REJECTED" && v.reject_reason && <p className="mt-1 text-sm text-rose-700">Lý do từ chối: {v.reject_reason}</p>}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3">
               <Badge map={APPROVAL} k={v.status} />
               <button className="text-red-600 hover:underline"
                       onClick={() => confirm(`Xóa xe "${v.name}"?`) && run(() => api(`/host/vehicles/${v.id}/`, { method: "DELETE" }))}>Xóa</button>
