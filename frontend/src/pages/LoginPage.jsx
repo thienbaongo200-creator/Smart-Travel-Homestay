@@ -44,7 +44,7 @@ export default function LoginPage() {
       <button type="button" onClick={() => setMode(mode === "login" ? "register" : "login")} className="text-sm text-emerald-700 hover:underline">
         {mode === "login" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}
       </button>
-      {mode === "login" && <div className="text-xs text-slate-500">Demo: khach1 / host1 / xe1 — mật khẩu 123456</div>}
+      {mode === "login" && <div className="text-xs text-slate-500">Demo: khach1 / host1 / xe1 / khach2 (123456), admin (admin123)</div>}
     </form>
   );
 }

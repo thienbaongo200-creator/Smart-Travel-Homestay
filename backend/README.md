@@ -280,9 +280,14 @@ npm run dev                                # http://localhost:5173 (proxy /api -
 
 ### Biến môi trường (backend)
 
+Khi chạy Django, `config/settings.py` tự nạp `backend/.env` nếu file tồn tại.
+Các biến môi trường đã được đặt trong hệ điều hành sẽ được ưu tiên hơn giá trị trong `.env`.
+Đăng nhập Django dùng `username`; chạy `python manage.py seed_demo` để tạo tài khoản demo trong bảng `accounts_user`.
+File gốc `homestay_db.sql` là schema độc lập với bảng `users/password_hash`, không tạo tài khoản đăng nhập cho Django.
+
 | Biến | Mặc định | Ý nghĩa |
 |---|---|---|
-| `DB_NAME / DB_USER / DB_PASSWORD / DB_HOST / DB_PORT` | `homestay` / `homestay` / `homestay` / `localhost` / `5432` | Kết nối PostgreSQL |
+| `DB_NAME / DB_USER / DB_PASSWORD / DB_HOST / DB_PORT` | `homestay_db` / `postgres` / `123456` / `localhost` / `5432` | Kết nối PostgreSQL |
 | `HOLD_MINUTES` | `15` | Thời gian giữ chỗ tạm |
 | `DEPOSIT_RATE` | `0.30` | Tỷ lệ đặt cọc |
 | `PAYMENT_WEBHOOK_SECRET` | `dev-webhook-secret` | Khóa ký webhook |
@@ -294,6 +299,7 @@ npm run dev                                # http://localhost:5173 (proxy /api -
 | `khach1` | `123456` | Khách hàng |
 | `host1` | `123456` | Chủ homestay |
 | `xe1` | `123456` | Chủ xe |
+| `khach2` | `123456` | Khách hàng |
 | `admin` | `admin123` | Quản trị (`/admin/`) |
 
 ### Kịch bản demo gợi ý
