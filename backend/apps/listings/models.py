@@ -70,6 +70,7 @@ class Vehicle(models.Model):
     city = models.CharField(max_length=100, db_index=True)
     image = models.ImageField(upload_to="vehicles/", blank=True)
     status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING, db_index=True)
+    reject_reason = models.CharField(max_length=300, blank=True)
 
     class Meta:
         constraints = [models.CheckConstraint(condition=models.Q(base_price__gt=0), name="vehicle_price_positive")]

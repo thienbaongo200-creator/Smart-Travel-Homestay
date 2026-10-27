@@ -217,6 +217,16 @@ Tiền tố `/api`. Các endpoint công khai không cần token; còn lại cầ
 | DELETE | `/host/blocks/{id}/` | Mở lại lịch đã chặn |
 | CRUD | `/host/pricing-rules/` | Quy tắc giá động |
 
+**Quản trị hệ thống** (yêu cầu tài khoản có `role=ADMIN` và quyền staff)
+
+| Method | URL | Mô tả |
+|---|---|---|
+| GET | `/admin/overview/` | Thống kê người dùng, nội dung, đơn đặt và thanh toán thành công |
+| GET | `/admin/users/?q=...` | Tìm kiếm tài khoản |
+| PATCH | `/admin/users/{id}/status/` | Khóa/mở tài khoản; không thể tự khóa tài khoản hiện tại |
+| GET | `/admin/approvals/` | Danh sách homestay và phương tiện đang chờ duyệt |
+| POST | `/admin/approvals/{homestay|vehicle}/{id}/decision/` | Duyệt hoặc từ chối, lưu lý do phản hồi |
+
 ---
 
 ## 8. Bảo mật

@@ -32,8 +32,8 @@ class RoomSerializer(serializers.ModelSerializer):
 class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
-        fields = ["id", "name", "vehicle_type", "transmission", "engine_cc", "seats", "base_price", "city", "status"]
-        read_only_fields = ["status"]
+        fields = ["id", "name", "vehicle_type", "transmission", "engine_cc", "seats", "base_price", "city", "status", "reject_reason"]
+        read_only_fields = ["status", "reject_reason"]
 
     def validate_base_price(self, v):
         if v <= 0:

@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/auth/login/", TokenObtainPairView.as_view()),
     path("api/auth/refresh/", TokenRefreshView.as_view()),
     path("api/auth/", include("apps.accounts.urls")),
+    path("api/admin/", include("apps.admin_api.urls")),
     path("api/", include("apps.pricing.urls")),
     path("api/", include("apps.bookings.urls")),
     path("api/", include("apps.host.urls")),
