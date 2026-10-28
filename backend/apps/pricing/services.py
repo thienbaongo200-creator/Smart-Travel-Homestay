@@ -1,13 +1,13 @@
 """
-Dynamic Pricing Engine.
+Dynamic Pricing Engine: chuỗi quy tắc theo mẫu Strategy.
 
-Giá một đêm/ngày:
-    price(d) = round_1000( base × day_factor(d) × occupancy_factor(d) × lead_factor )
-    day_factor(d) = max(weekend(d), holiday(d)) × season(d)          # BR-05, BR-06
-Tổng:
-    total = Σ room(d) + Σ vehicle(d) − combo_discount
-    combo_discount = vehicle_subtotal × (1 − combo.multiplier)  nếu số đêm ≥ combo.min_value
+  giá(đêm) = clamp( giá_gốc → rule1 → rule2 → ... , sàn 50%, trần 300% ), làm tròn 1.000đ
+  Rule áp theo priority giảm dần. Ngày lễ đứng trước cuối tuần và chặn rule cuối tuần (BR-06).
+  Combo: giảm tiền xe khi thuê kèm từ N đêm (sau khi cộng các đêm).
+  Giá từng đêm được chép vào đơn (BookingItemNight) lúc đặt.
 """
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable
@@ -35,47 +35,111 @@ def load_rules(target, homestay=None, vehicle=None):
     return list(PricingRule.objects.filter(scope, target=target, is_active=True))
 
 
-def day_factor(d, rules):
-    peak = ONE
-    for r in rules:
-        if r.kind == K.WEEKEND and d.weekday() in (4, 5, 6):  # T6, T7, CN
-            peak = max(peak, r.multiplier)
-        elif r.kind == K.HOLIDAY and r.covers(d):
-            peak = max(peak, r.multiplier)
-    season = ONE
-    for r in rules:
-        if r.kind == K.SEASON and r.covers(d):
-            season *= r.multiplier
-    return peak * season
+@dataclass
+class Ctx:
+    day: object
+    check_in: object
+    booking_date: object
+    nights: int
+    occupancy: Decimal
+    flags: dict = field(default_factory=dict)
+
+    @property
+    def lead_days(self):
+        return max((self.check_in - self.booking_date).days, 0)
 
 
-def occupancy_factor(rate_pct: Decimal, rules):
-    factor, best = ONE, -1
-    for r in rules:
-        if r.kind == K.OCCUPANCY and r.min_value is not None and rate_pct >= r.min_value and r.min_value > best:
-            factor, best = r.multiplier, r.min_value  # ngưỡng cao nhất thỏa mãn thắng
-    return factor
+# ---------------- Strategy ----------------
+class PricingStrategy(ABC):
+    bucket = "day"  # nhóm hệ số hiển thị: day / occ / lead
+
+    def __init__(self, rule):
+        self.rule = rule
+
+    @abstractmethod
+    def applies_to(self, ctx: Ctx) -> bool: ...
+
+    def apply(self, price: Decimal, ctx: Ctx) -> Decimal:
+        return price * self.rule.multiplier
 
 
-def lead_factor(lead_days: int, rules):
-    for r in rules:
-        if r.kind != K.LEAD_TIME:
+class HolidayRule(PricingStrategy):
+    def applies_to(self, ctx):
+        return self.rule.covers(ctx.day)
+
+    def apply(self, price, ctx):
+        ctx.flags["holiday"] = True
+        return super().apply(price, ctx)
+
+
+class SeasonRule(PricingStrategy):
+    def applies_to(self, ctx):
+        return self.rule.covers(ctx.day)
+
+
+class WeekendRule(PricingStrategy):
+    def applies_to(self, ctx):  # đêm T6, T7, CN; ngày lễ thì không nhân thêm cuối tuần
+        return ctx.day.weekday() in (4, 5, 6) and not ctx.flags.get("holiday")
+
+
+class OccupancyRule(PricingStrategy):
+    bucket = "occ"
+
+    def applies_to(self, ctx):
+        return ctx.occupancy >= (self.rule.min_value or 0)
+
+
+class LeadTimeRule(PricingStrategy):
+    bucket = "lead"
+
+    def applies_to(self, ctx):
+        lo, hi = self.rule.min_value, self.rule.max_value
+        return (lo is None or ctx.lead_days >= lo) and (hi is None or ctx.lead_days <= hi)
+
+
+STRATEGIES = {K.HOLIDAY: HolidayRule, K.SEASON: SeasonRule, K.WEEKEND: WeekendRule,
+              K.OCCUPANCY: OccupancyRule, K.LEAD_TIME: LeadTimeRule}
+
+
+def build_chain(rules, ctx):
+    strategies = [STRATEGIES[r.kind](r) for r in rules if r.kind in STRATEGIES]
+
+    def best(kind, key):  # nhóm loại trừ: chỉ giữ một rule mạnh nhất
+        group = [s for s in strategies if s.rule.kind == kind and s.applies_to(ctx)]
+        return max(group, key=key) if group else None
+
+    occ = best(K.OCCUPANCY, lambda s: s.rule.min_value or 0)  # ngưỡng cao nhất thỏa mãn
+    lead = best(K.LEAD_TIME, lambda s: s.rule.effective_priority)
+    chain = [s for s in strategies if s.rule.kind not in (K.OCCUPANCY, K.LEAD_TIME)]
+    chain += [s for s in (occ, lead) if s]
+    return sorted(chain, key=lambda s: (-s.rule.effective_priority, s.rule.id or 0))
+
+
+def price_night(base: Decimal, rules, ctx: Ctx):
+    price, applied = Decimal(base), []
+    factors = {"day": ONE, "occ": ONE, "lead": ONE}
+    for s in build_chain(rules, ctx):
+        if not s.applies_to(ctx):
             continue
-        if (r.min_value is None or lead_days >= r.min_value) and (r.max_value is None or lead_days <= r.max_value):
-            return r.multiplier
-    return ONE
+        price = s.apply(price, ctx)
+        factors[s.bucket] *= s.rule.multiplier
+        applied.append(f"{s.rule.kind}#{s.rule.id}")
+
+    floor = Decimal(base) * settings.PRICE_FLOOR_PERCENT / 100
+    cap = Decimal(base) * settings.PRICE_CAP_PERCENT / 100
+    clamped = min(max(price, floor), cap)
+    return round_vnd(clamped), applied, factors, clamped != price
 
 
 def _price_lines(base, check_in, check_out, rules, occupancy_fn: Callable, today):
-    lead = max((check_in - today).days, 0)
-    lf = lead_factor(lead, rules)
     lines, subtotal, d = [], Decimal(0), check_in
+    nights = (check_out - check_in).days
     while d < check_out:
-        df = day_factor(d, rules)
-        of = occupancy_factor(occupancy_fn(d), rules)
-        price = round_vnd(base * df * of * lf)
-        lines.append({"date": d.isoformat(), "base": str(base), "day_factor": str(df),
-                      "occupancy_factor": str(of), "lead_factor": str(lf), "price": str(price)})
+        ctx = Ctx(day=d, check_in=check_in, booking_date=today, nights=nights, occupancy=occupancy_fn(d))
+        price, applied, f, clamped = price_night(base, rules, ctx)
+        lines.append({"date": d.isoformat(), "base": str(base), "day_factor": str(f["day"]),
+                      "occupancy_factor": str(f["occ"]), "lead_factor": str(f["lead"]),
+                      "applied_rules": ",".join(applied), "clamped": clamped, "price": str(price)})
         subtotal += price
         d += timedelta(days=1)
     return lines, subtotal

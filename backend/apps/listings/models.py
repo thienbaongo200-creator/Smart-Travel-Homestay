@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+from apps.accounts.models import LICENSE_CHOICES
 from django.conf import settings
 from django.db import models
 
@@ -66,7 +66,8 @@ class Vehicle(models.Model):
     transmission = models.CharField(max_length=2, choices=Transmission.choices, default=Transmission.AUTOMATIC)
     engine_cc = models.PositiveIntegerField(null=True, blank=True)
     seats = models.PositiveSmallIntegerField(default=2)
-    base_price = models.DecimalField(max_digits=12, decimal_places=0)  # VND / ngày
+    license_class = models.CharField(max_length=2, blank=True, choices=LICENSE_CHOICES) 
+    base_price = models.DecimalField(max_digits=12, decimal_places=0)  
     city = models.CharField(max_length=100, db_index=True)
     image = models.ImageField(upload_to="vehicles/", blank=True)
     status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING, db_index=True)

@@ -29,6 +29,11 @@ class PricingRule(models.Model):
     max_value = models.IntegerField(null=True, blank=True)
     label = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)  # bật/tắt từng quy tắc
+    priority = models.IntegerField(default=0, help_text="Số lớn áp trước; 0 = mặc định theo loại")
+    DEFAULT_PRIORITY = {"HOLIDAY": 90, "SEASON": 70, "WEEKEND": 60, "OCCUPANCY": 50, "LEAD_TIME": 40, "COMBO": 10}
+    @property
+    def effective_priority(self):
+        return self.priority or self.DEFAULT_PRIORITY.get(self.kind, 0)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

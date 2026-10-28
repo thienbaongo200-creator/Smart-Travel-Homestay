@@ -3,21 +3,19 @@ from datetime import timedelta
 from django.db.models import Count, Q, Sum
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import TruncMonth
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.bookings import services as svc
-from apps.bookings.models import BookingItem, CalendarSlot
+from apps.bookings.models import BookingItem, DayStatus, RoomDay, VehicleDay
 from apps.listings.models import ApprovalStatus, Homestay, Room, Vehicle
 
 from .permissions import IsHost, IsPartner, IsVehicleOwner
 from .serializers import HomestaySerializer, RoomSerializer, VehicleSerializer
 
-S = CalendarSlot.Status
+D = DayStatus
 
 
 class SafeDelete:
@@ -28,14 +26,22 @@ class SafeDelete:
             return Response({"detail": "Đã có đơn đặt liên quan nên không thể xóa. Hãy tắt hiển thị thay vì xóa."}, status=409)
 
 
-def _calendar(field, obj):
+def _calendar(model, fk, obj):
+    """Gom các ngày liên tiếp cùng trạng thái/đơn/ghi chú thành một khoảng."""
     today = timezone.localdate()
-    qs = (CalendarSlot.objects.filter(svc.active_q(), **{field: obj},
-                                      period__overlap=svc._range(today, today + timedelta(days=365)))
-          .select_related("booking_item__booking").order_by("period"))
-    return [{"id": s.id, "from": s.period.lower.isoformat(), "to": s.period.upper.isoformat(),
-             "status": s.status, "note": s.note,
-             "booking": s.booking_item.booking.code if s.booking_item_id else None} for s in qs]
+    rows = (model.objects.filter(**{fk: obj}, day__gte=today, day__lt=today + timedelta(days=365))
+            .exclude(status=D.AVAILABLE).select_related("booking_item__booking").order_by("day"))
+    out = []
+    for r in rows:
+        code = r.booking_item.booking.code if r.booking_item_id else None
+        nxt = (r.day + timedelta(days=1)).isoformat()
+        if out and out[-1]["status"] == r.status and out[-1]["booking"] == code and out[-1]["note"] == r.note \
+                and out[-1]["to"] == r.day.isoformat():
+            out[-1]["to"] = nxt
+        else:
+            out.append({"id": r.id, "from": r.day.isoformat(), "to": nxt, "status": r.status, "note": r.note,
+                        "booking": code})
+    return out
 
 
 class HomestayViewSet(SafeDelete, viewsets.ModelViewSet):
@@ -46,7 +52,7 @@ class HomestayViewSet(SafeDelete, viewsets.ModelViewSet):
         return Homestay.objects.filter(owner=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user, status=ApprovalStatus.PENDING)  # luôn chờ admin duyệt
+        serializer.save(owner=self.request.user, status=ApprovalStatus.PENDING)
 
 
 class RoomViewSet(SafeDelete, viewsets.ModelViewSet):
@@ -58,7 +64,7 @@ class RoomViewSet(SafeDelete, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def calendar(self, request, pk=None):
-        return Response(_calendar("room", self.get_object()))
+        return Response(_calendar(RoomDay, "room", self.get_object()))
 
 
 class VehicleViewSet(SafeDelete, viewsets.ModelViewSet):
@@ -72,40 +78,27 @@ class VehicleViewSet(SafeDelete, viewsets.ModelViewSet):
         serializer.save(owner=self.request.user, status=ApprovalStatus.PENDING)
 
     @action(detail=True, methods=["get"])
-    def calendar(self, request, pk=None):  # chủ xe chỉ xem, không sửa lịch thủ công (BR)
-        return Response(_calendar("vehicle", self.get_object()))
-
-
-class UnblockView(APIView):
-    """DELETE /api/host/blocks/<id>/ : mở lại lịch đã chặn thủ công."""
-    permission_classes = [permissions.IsAuthenticated, IsHost]
-
-    def delete(self, request, slot_id):
-        slot = get_object_or_404(CalendarSlot, pk=slot_id, status=S.BLOCKED, room__homestay__owner=request.user)
-        slot.delete()
-        return Response(status=204)
+    def calendar(self, request, pk=None):  # chủ xe chỉ xem
+        return Response(_calendar(VehicleDay, "vehicle", self.get_object()))
 
 
 class InboxView(APIView):
-    """Đơn thuộc phòng/xe của đối tác hiện tại (kèm thông tin khách)."""
     permission_classes = [permissions.IsAuthenticated, IsPartner]
 
     def get(self, request):
         u = request.user
         items = (BookingItem.objects.filter(Q(room__homestay__owner=u) | Q(vehicle__owner=u))
-                 .select_related("booking__customer", "slot", "room__homestay", "vehicle")
+                 .select_related("booking__customer", "room__homestay", "vehicle")
                  .order_by("-booking__created_at")[:200])
         out = []
         for i in items:
             c = i.booking.customer
             out.append({
-                "item_id": i.id, "booking": i.booking.code,
-                "type": "ROOM" if i.room_id else "VEHICLE",
+                "item_id": i.id, "booking": i.booking.code, "type": "ROOM" if i.room_id else "VEHICLE",
                 "resource": f"{i.room.homestay.name} / {i.room.name}" if i.room_id else i.vehicle.name,
                 "customer": c.username, "email": c.email, "phone": c.phone, "guests": i.booking.guests,
                 "check_in": i.booking.check_in, "check_out": i.booking.check_out,
-                "status": i.slot.status, "subtotal": i.subtotal, "note": i.slot.note,
-                "created_at": i.booking.created_at,
+                "status": i.status, "subtotal": i.subtotal, "note": i.note, "created_at": i.booking.created_at,
             })
         return Response(out)
 
@@ -116,19 +109,16 @@ class StatsView(APIView):
     def get(self, request):
         u = request.user
         items = BookingItem.objects.filter(Q(room__homestay__owner=u) | Q(vehicle__owner=u))
-        earned = items.filter(slot__status__in=[S.CONFIRMED, S.CHECKED_IN, S.CHECKED_OUT])
+        earned = items.filter(status=BookingItem.Status.CONFIRMED)
         monthly = (earned.annotate(m=TruncMonth("booking__check_in")).values("m")
                    .annotate(revenue=Sum("subtotal"), orders=Count("id")).order_by("m"))
-        by_status = {r["slot__status"]: r["n"] for r in items.values("slot__status").annotate(n=Count("id"))}
+        by_status = {r["status"]: r["n"] for r in items.values("status").annotate(n=Count("id"))}
 
         today = timezone.localdate()
         end = today + timedelta(days=30)
         rooms = Room.objects.filter(homestay__owner=u, is_active=True).count()
-        nights = 0
-        for s in CalendarSlot.objects.filter(room__homestay__owner=u, status__in=[S.PENDING, S.CONFIRMED, S.CHECKED_IN],
-                                             period__overlap=svc._range(today, end)):
-            nights += (min(s.period.upper, end) - max(s.period.lower, today)).days
-
+        nights = RoomDay.objects.filter(room__homestay__owner=u, room__is_active=True, day__gte=today, day__lt=end,
+                                        status__in=[D.HELD, D.BOOKED]).count()
         return Response({
             "total_revenue": earned.aggregate(t=Sum("subtotal"))["t"] or 0,
             "pending": by_status.get("PENDING", 0),

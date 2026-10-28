@@ -1,25 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../../services/api.js";
+import { api } from "../../services/api";
 import Countdown from "../../components/domain/Countdown.jsx";
-import Alert from "../../components/common/Alert.jsx";
-import Badge from "../../components/common/Badge.jsx";
-import Button from "../../components/common/Button.jsx";
-import Card from "../../components/common/Card.jsx";
-import EmptyState from "../../components/common/EmptyState.jsx";
-import LoadingState from "../../components/common/LoadingState.jsx";
-import { STATUS, vnd } from "../../utils/index.js";
-
-const TONES = {
-  HOLD: "warning",
-  PENDING: "info",
-  CONFIRMED: "success",
-  CHECKED_IN: "success",
-  CHECKED_OUT: "neutral",
-  CANCELLED: "neutral",
-  REJECTED: "danger",
-  EXPIRED: "neutral",
-};
+import { STATUS, vnd } from "../../utils";
 
 export default function BookingsPage() {
   const [sp] = useSearchParams();
@@ -27,68 +10,70 @@ export default function BookingsPage() {
   const [list, setList] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
+  const [detail, setDetail] = useState({}); // code -> chi tiết (giá từng đêm đã chốt)
 
   const load = useCallback(() => api("/bookings/").then(setList).catch((e) => setErr(e.message)), []);
   useEffect(() => { load(); }, [load]);
 
   async function pay(code, success) {
-    setBusy(code);
-    setErr("");
+    setBusy(code); setErr("");
     try {
       await api(`/bookings/${code}/pay/`, { method: "POST" });
       await api(`/bookings/${code}/mock-pay/`, { method: "POST", body: { success } });
       await load();
-    } catch (e) {
-      setErr(e.message);
-      await load();
-    } finally {
-      setBusy("");
-    }
+    } catch (e) { setErr(e.message); await load(); }
+    finally { setBusy(""); }
   }
 
-  if (!list) return err ? <Alert>{err}</Alert> : <LoadingState />;
+  async function toggle(code) {
+    if (detail[code]) { setDetail((d) => ({ ...d, [code]: null })); return; }
+    try { const d = await api(`/bookings/${code}/`); setDetail((x) => ({ ...x, [code]: d })); }
+    catch (e) { setErr(e.message); }
+  }
 
+  if (!list) return <div className="text-slate-500">{err || "Đang tải…"}</div>;
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-emerald-800">CHUYẾN ĐI CỦA BẠN</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Đơn đặt của tôi</h1>
-        <p className="mt-2 text-sm text-slate-600">Theo dõi xác nhận, thanh toán và thời hạn giữ chỗ.</p>
-      </div>
-      <Alert>{err}</Alert>
-      {list.length === 0 && <EmptyState title="Bạn chưa có đơn đặt nào" description="Khi bạn đặt chỗ nghỉ, thông tin chuyến đi sẽ hiển thị tại đây." />}
-      {list.map((booking) => {
-        const [label] = STATUS[booking.status] ?? [booking.status];
+    <div className="max-w-3xl mx-auto space-y-3">
+      <h1 className="text-xl font-bold">Đơn của tôi</h1>
+      {err && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{err}</div>}
+      {list.length === 0 && <div className="text-slate-500">Bạn chưa có đơn nào.</div>}
+      {list.map((b) => {
+        const [label, color] = STATUS[b.status] ?? [b.status, "bg-slate-200"];
+        const d = detail[b.code];
         return (
-          <Card key={booking.code} className={`p-5 sm:p-6 ${booking.code === highlight ? "ring-2 ring-emerald-600 ring-offset-2" : ""}`}>
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div key={b.code} className={`bg-white border rounded-xl p-4 ${b.code === highlight ? "ring-2 ring-emerald-500" : ""}`}>
+            <div className="flex justify-between items-start gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mã đơn · {booking.code}</div>
-                <div className="mt-2 text-lg font-bold text-slate-950">{booking.check_in} <span className="text-slate-400">→</span> {booking.check_out}</div>
+                <div className="font-mono font-semibold">#{b.code}</div>
+                <div className="text-sm text-slate-500">{b.check_in} → {b.check_out}</div>
               </div>
-              <Badge tone={TONES[booking.status]}>{label}</Badge>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{label}</span>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
-              <div><p className="text-xs text-slate-500">Tổng cộng</p><p className="mt-1 font-bold text-slate-900">{vnd(booking.total)}</p></div>
-              <div><p className="text-xs text-slate-500">Tiền đặt cọc</p><p className="mt-1 font-bold text-slate-900">{vnd(booking.deposit)}</p></div>
-            </div>
-            {booking.status === "HOLD" && (
-              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-semibold text-amber-950">Thời gian giữ chỗ còn <Countdown until={booking.hold_expires_at} onExpire={load} /></p>
-                <p className="mt-1 text-xs leading-5 text-amber-900">Hoàn tất đặt cọc trước khi hết thời gian để tiếp tục đơn đặt.</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button disabled={busy === booking.code} onClick={() => pay(booking.code, true)}>
-                    {busy === booking.code ? "Đang xử lý…" : "Thanh toán cọc"}
-                  </Button>
-                  {import.meta.env.DEV && (
-                    <Button variant="secondary" disabled={busy === booking.code} onClick={() => pay(booking.code, false)}>
-                      Mô phỏng thanh toán lỗi
-                    </Button>
-                  )}
-                </div>
+            <div className="mt-2 text-sm">Tổng {vnd(b.total)} · Cọc {vnd(b.deposit)}</div>
+            <button className="mt-2 text-sm text-emerald-700 hover:underline" onClick={() => toggle(b.code)}>
+              {d ? "Ẩn giá từng đêm" : "Xem giá từng đêm đã chốt"}
+            </button>
+            {d && d.items.map((it) => (
+              <div key={it.name} className="mt-2 text-sm bg-slate-50 rounded-lg p-3">
+                <div className="font-medium">{it.name} · {vnd(it.subtotal)}</div>
+                {it.nights.map((n) => (
+                  <div key={n.day} className="flex justify-between text-slate-600">
+                    <span>{n.day} <span className="text-xs text-slate-400">{n.applied_rules}</span></span>
+                    <span>{vnd(n.price)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {b.status === "HOLD" && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className="text-sm text-amber-700">Giữ chỗ còn <Countdown until={b.hold_expires_at} onExpire={load} /></span>
+                <button disabled={busy === b.code} onClick={() => pay(b.code, true)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-50">Thanh toán cọc (giả lập)</button>
+                <button disabled={busy === b.code} onClick={() => pay(b.code, false)}
+                        className="px-3 py-1.5 rounded-lg border text-sm disabled:opacity-50">Giả lập thất bại</button>
               </div>
             )}
-          </Card>
+          </div>
         );
       })}
     </div>

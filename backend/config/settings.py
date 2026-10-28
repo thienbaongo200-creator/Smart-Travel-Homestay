@@ -95,3 +95,5 @@ CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
 HOLD_MINUTES = int(os.environ.get("HOLD_MINUTES", "15"))
 DEPOSIT_RATE = Decimal(os.environ.get("DEPOSIT_RATE", "0.30"))
 PAYMENT_WEBHOOK_SECRET = os.environ.get("PAYMENT_WEBHOOK_SECRET", "dev-webhook-secret")
+PRICE_FLOOR_PERCENT = int(os.environ.get("PRICE_FLOOR_PERCENT", "50"))
+PRICE_CAP_PERCENT = int(os.environ.get("PRICE_CAP_PERCENT", "300"))

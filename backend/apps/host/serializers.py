@@ -32,10 +32,17 @@ class RoomSerializer(serializers.ModelSerializer):
 class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
-        fields = ["id", "name", "vehicle_type", "transmission", "engine_cc", "seats", "base_price", "city", "status", "reject_reason"]
-        read_only_fields = ["status", "reject_reason"]
+        fields = ["id", "name", "vehicle_type", "transmission", "engine_cc", "seats", "license_class",
+                  "base_price", "city", "status"]
+        read_only_fields = ["status"]
 
     def validate_base_price(self, v):
         if v <= 0:
             raise serializers.ValidationError("Giá phải lớn hơn 0")
         return v
+
+    def validate(self, attrs):
+        if not attrs.get("license_class") and not (self.instance and self.instance.license_class):
+            vt = attrs.get("vehicle_type") or (self.instance and self.instance.vehicle_type)
+            attrs["license_class"] = "B1" if vt == "CAR" else "A1"
+        return attrs

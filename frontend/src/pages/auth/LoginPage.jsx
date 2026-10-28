@@ -83,6 +83,15 @@ export default function LoginPage() {
                   <option value="VEHICLE_OWNER">Chủ xe</option>
                 </select>
               </label>
+              <label className="block text-sm">Giấy phép lái xe (nếu thuê xe)
+                <select value={f.license_class} onChange={set("license_class")} className={input}>
+                  <option value="">Chưa có</option>
+                  <option value="A1">A1 (xe máy)</option>
+                  <option value="A2">A2 (xe máy)</option>
+                  <option value="B1">B1 (ô tô)</option>
+                  <option value="B2">B2 (ô tô)</option>
+                </select>
+              </label>
             </>
           )}
           <label className="block text-sm font-semibold text-slate-700">

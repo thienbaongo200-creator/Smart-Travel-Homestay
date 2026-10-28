@@ -11,5 +11,4 @@ router.register("host/vehicles", v.VehicleViewSet, basename="host-vehicle")
 urlpatterns = [
     path("host/stats/", v.StatsView.as_view()),
     path("host/inbox/", v.InboxView.as_view()),
-    path("host/blocks/<int:slot_id>/", v.UnblockView.as_view()),
 ] + router.urls

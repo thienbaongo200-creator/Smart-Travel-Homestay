@@ -40,9 +40,12 @@ export default function HostCalendar() {
       setRange({ checkIn: "", checkOut: "" }); setNote(""); await loadSlots();
     } catch (e) { setErr(e.message); }
   }
-  async function unblock(id) {
+  async function unblock(s) {
     setErr("");
-    try { await api(`/host/blocks/${id}/`, { method: "DELETE" }); await loadSlots(); } catch (e) { setErr(e.message); }
+    try {
+      await api(`/host/rooms/${sel}/blocks/?from=${s.from}&to=${s.to}`, { method: "DELETE" });
+      await loadSlots();
+    } catch (e) { setErr(e.message); }
   }
 
   if (items.length === 0) return <div className="text-slate-500">{err || (isVehicle ? "Bạn chưa có xe nào." : "Bạn chưa có phòng nào.")}</div>;
@@ -83,7 +86,7 @@ export default function HostCalendar() {
               <div className="flex items-center gap-3">
                 <Badge map={SLOT} k={s.status} />
                 {s.status === "BLOCKED" && !isVehicle && (
-                  <button className="text-emerald-700 hover:underline" onClick={() => unblock(s.id)}>Mở lại</button>
+                  <button className="text-emerald-700 hover:underline" onClick={() => unblock(s)}>Mở lại</button>
                 )}
               </div>
             </div>
